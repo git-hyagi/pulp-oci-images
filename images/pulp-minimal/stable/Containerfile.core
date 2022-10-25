@@ -1,6 +1,7 @@
-FROM pulp/base:latest
+FROM pulp/base:latest AS base
 
-RUN pip3 install pulpcore \
+USER pulp:pulp
+RUN pip3 install --no-warn-script-location --user pulpcore \
   pulp_ansible \
   pulp-certguard \
   pulp_container \
@@ -10,7 +11,41 @@ RUN pip3 install pulpcore \
   pulp_python \
   pulp_rpm
 
-USER pulp:pulp
 RUN PULP_STATIC_ROOT=/var/lib/operator/static/ PULP_CONTENT_ORIGIN=localhost \
-       /usr/local/bin/pulpcore-manager collectstatic --clear --noinput --link
+    /var/lib/pulp/.local/bin/pulpcore-manager collectstatic --clear --noinput --link
+
 USER root:root
+
+###### pulp operator image
+FROM python:3.8-slim
+
+# Create pulp user and add it to pulp group
+RUN groupadd -g 700 --system pulp
+RUN useradd -d /var/lib/pulp --system -u 700 -g pulp pulp
+WORKDIR /var/lib/pulp
+
+# pulpcore-manager is hardcoded with #!/usr/bin/python3.8
+RUN ln -s /usr/local/bin/python3.8 /usr/bin/
+
+# Copy python files from base image
+COPY --from=base /var/lib/pulp/.local/lib/python3.8/site-packages/ /usr/local/lib/python3.8/
+COPY --from=base /var/lib/pulp/.local/bin /usr/local/bin
+COPY --from=base /var/lib/operator /var/lib/operator
+
+# Scripts
+COPY --from=base /usr/bin/readyz.py /usr/bin/readyz.py
+COPY --from=base /usr/bin/route_paths.py /usr/bin/route_paths.py
+COPY --from=base /usr/bin/wait_on_postgres.py /usr/bin/wait_on_postgres.py
+COPY --from=base /usr/bin/wait_on_database_migrations.sh /usr/bin/wait_on_database_migrations.sh
+COPY --from=base /pulp-common-entrypoint.sh /pulp-common-entrypoint.sh
+COPY --from=base /usr/bin/pulp-api /usr/bin/pulp-api
+COPY --from=base /usr/bin/pulp-content /usr/bin/pulp-content
+COPY --from=base /usr/bin/pulp-resource-manager /usr/bin/pulp-resource-manager
+COPY --from=base /usr/bin/pulp-worker /usr/bin/pulp-worker
+
+
+# install missing dependencies
+RUN pip3 install gunicorn asgiref six cffi sqlparse charset-normalizer==2.1.1 typing-extensions idna requests chardet
+
+USER pulp
+ENTRYPOINT ["/pulp-common-entrypoint.sh"]
