@@ -1,7 +1,5 @@
 #!/bin/bash -eu
 
-/usr/bin/wait_on_postgres.py
-/usr/bin/wait_on_database_migrations.sh
 
 if which pulpcore-api
 then

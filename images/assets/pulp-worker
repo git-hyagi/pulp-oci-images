@@ -1,7 +1,8 @@
 #!/bin/bash -eu
 
-/usr/bin/wait_on_postgres.py
-/usr/bin/wait_on_database_migrations.sh
 
 export PATH=/usr/local/bin:/usr/bin/
 exec pulpcore-worker
+#exec python3 -m debugpy --listen 5678 --wait-for-client /usr/local/bin/pulpcore-worker
+#exec /usr/local/bin/opentelemetry-instrument --metrics_exporter prometheus --service_name pulp-worker /usr/local/bin/pulpcore-worker
+#exec /usr/local/bin/opentelemetry-instrument --service_name pulp-worker /usr/local/bin/pulpcore-worker
